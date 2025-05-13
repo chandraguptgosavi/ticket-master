@@ -1,0 +1,18 @@
+venue:
+create, get, getAll
+
+event: 
+create
+{
+    venue_id,
+}
+getAll -> Event[]
+getbyid -> Event & Venue & Ticket[]
+
+ticket:
+create 
+{
+    event_id,
+    count
+}
+getTicketsByEventId -> Ticket[]
