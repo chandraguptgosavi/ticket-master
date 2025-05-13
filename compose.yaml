@@ -1,0 +1,83 @@
+services:
+  db:
+    image: postgres:${PG_VERSION:-17.4-alpine3.20}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    expose:
+      - ${POSTGRES_DB_PORT:-5432}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_DB_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_DB_USER:-postgres}
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  db-admin:
+    image: adminer:${ADMINER_VERSION:-5.2.1}
+    networks:
+      - app_network
+    ports:
+      - "8080:8080"
+      
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    networks:
+      - app_network
+    ports:
+      - 3000:${API_GATEWAY_PORT:-3001}
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      API_GATEWAY_PORT: ${API_GATEWAY_PORT:-3001}
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key}
+      IDENTITY_SERVICE_URL: ${IDENTITY_SERVICE_URL:-http://identity-service:3002}
+      EVENT_CRUD_SERVICE_URL: ${EVENT_CRUD_SERVICE_URL:-http://event-crud-service:3003}
+  
+  identity-service:
+    build:
+      context: ./backend/identity-service
+      dockerfile: Dockerfile
+    networks:
+      - app_network
+    expose:
+      - ${IDENTITY_SERVICE_PORT:-3002}
+    environment:
+      IDENTITY_SERVICE_PORT: ${IDENTITY_SERVICE_PORT:-3002}
+      PG_DATASOURCE_URL: jdbc:postgresql://${POSTGRES_DB_HOST:-db}:${POSTGRES_DB_PORT:-5432}/${IDENTITY_SERVICE_POSTGRES_DB_NAME:-identity_db}
+      PG_DATASOURCE_USERNAME: ${POSTGRES_DB_USER:-postgres}
+      PG_DATASOURCE_PASSWORD: ${POSTGRES_DB_PASSWORD:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret_key}
+      JWT_EXP_MS: ${JWT_EXP_MS:-3600000}
+    depends_on:
+      - db
+
+  event-crud-service:
+    build:
+      context: ./backend/event-crud-service
+      dockerfile: Dockerfile
+    networks:
+      - app_network
+    expose:
+      - ${EVENT_CRUD_SERVICE_PORT:-3003}
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      EVENT_CRUD_SERVICE_PORT: ${EVENT_CRUD_SERVICE_PORT:-3003}
+      POSTGRES_DB_USER: ${POSTGRES_DB_USER:-postgres}
+      POSTGRES_DB_PASSWORD: ${POSTGRES_DB_PASSWORD:-postgres}
+      POSTGRES_DB_HOST: ${POSTGRES_DB_HOST:-db}
+      POSTGRES_DB_PORT: ${POSTGRES_DB_PORT:-5432}
+      EVENT_CRUD_SERVICE_POSTGRES_DB_NAME: ${EVENT_CRUD_SERVICE_POSTGRES_DB_NAME:-event_db}
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+
+networks:
+  app_network:
+    driver: bridge
